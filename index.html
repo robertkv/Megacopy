@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mega Copy Limited - Financial Summary Dashboard</title>
+    <title>Mega Copy Limited - Cloud Financial Summary Dashboard</title>
     <style>
         :root {
             --primary: #2c3e50;
@@ -52,13 +52,9 @@
             border-radius: 20px;
             margin-top: 5px;
             display: inline-block;
-            border: 1px solid rgba(255,255,255,0.2);
         }
 
-        /* Printable Title hidden on standard view */
-        .print-only-header {
-            display: none;
-        }
+        .print-only-header { display: none; }
 
         .action-buttons {
             display: flex;
@@ -71,11 +67,9 @@
             border-radius: 4px;
             font-weight: bold;
             cursor: pointer;
-            transition: opacity 0.2s;
         }
         .btn-print { background-color: #3498db; color: white; }
         .btn-close { background-color: #e67e22; color: white; }
-        .btn-action:hover { opacity: 0.9; }
 
         /* Dashboard Cards */
         .grid-cards {
@@ -109,7 +103,6 @@
             font-weight: bold;
         }
 
-        /* Forms and Tables Grid */
         .workspace {
             display: grid;
             grid-template-columns: 1fr 2fr;
@@ -167,9 +160,6 @@
             font-weight: bold;
         }
 
-        form button:hover { background-color: var(--secondary); }
-
-        /* Table Styles */
         .table-container {
             max-height: 500px;
             overflow-y: auto;
@@ -198,34 +188,25 @@
         .text-red { color: var(--danger); font-weight: bold; }
         .font-bold { font-weight: bold; }
 
-        /* Printing Settings */
         @media print {
             body { background: white; padding: 0; color: #000; }
             header, form, .action-buttons, .input-bf-container { display: none !important; }
-            
             .print-only-header { 
                 display: block !important; 
-                text-align: center;
-                margin-bottom: 30px;
-                border-bottom: 3px double #2c3e50;
-                padding-bottom: 10px;
+                text-align: center; margin-bottom: 30px; border-bottom: 3px double #2c3e50; padding-bottom: 10px;
             }
-            .print-only-header h1 { margin: 0 0 5px 0; font-size: 28px; color: #2c3e50; }
-            .print-only-header h2 { margin: 0; font-size: 20px; color: #555; text-transform: uppercase; }
-            
+            .print-only-header h1 { margin: 0; font-size: 28px; color: #2c3e50; }
             .container { max-width: 100%; }
             .workspace { grid-template-columns: 1fr; }
-            .card { box-shadow: none; border: 1px solid #ccc; background: #fff !important; }
+            .card { box-shadow: none; border: 1px solid #ccc; }
             .table-container { max-height: none; overflow: visible; }
             th { background-color: #f2f2f2 !important; color: black; border-bottom: 2px solid #000; }
-            td, th { padding: 8px 5px; }
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    
     <div class="print-only-header">
         <h1>MEGA COPY LIMITED</h1>
         <h2>Financial Performance Report — <span class="current-month-txt"></span></h2>
@@ -233,7 +214,7 @@
 
     <header>
         <div>
-            <h1>Mega Copy Limited</h1>
+            <h1>Mega Copy Limited ☁️</h1>
             <div class="month-indicator">📅 Summary for: <span class="current-month-txt"></span></div>
         </div>
         <div class="action-buttons">
@@ -269,7 +250,6 @@
     </div>
 
     <div class="workspace">
-        
         <div>
             <div class="section" style="margin-bottom: 20px;">
                 <h2>💰 Log Total Daily Sales</h2>
@@ -296,7 +276,7 @@
         </div>
 
         <div class="section">
-            <h2>📊 Master Ledger (Debit / Credit & Running Balance)</h2>
+            <h2>📊 Master Ledger (Cloud Synced Running Balance)</h2>
             <div class="table-container">
                 <table id="ledger-table">
                     <thead>
@@ -309,16 +289,19 @@
                         </tr>
                     </thead>
                     <tbody id="ledger-body">
-                        </tbody>
+                        <tr><td colspan="5" style="text-align:center;">Loading ledger data from cloud...</td></tr>
+                    </tbody>
                 </table>
             </div>
         </div>
-
     </div>
 </div>
 
 <script>
-    let transactions = JSON.parse(localStorage.getItem('studio_tx_data')) || [];
+    // ⚠️ PASTE YOUR GOOGLE WEB APP DEPLOYMENT URL HERE:
+    const CLOUD_URL = "https://script.google.com/macros/s/AKfycbxvut7nwhpeXdOivNUGc1gfGE3T5l8qLxgLp-SsZXvG1xqa6oPmxKmosG3OX6Mp_JQG/exec";
+
+    let transactions = [];
     let balanceBroughtForward = parseFloat(localStorage.getItem('studio_bf_data')) || 0;
 
     function formatCurrency(amount) {
@@ -332,34 +315,42 @@
         return `${day}/${months[date.getMonth()]}/${date.getFullYear()}`;
     }
 
-    // Dynamic extraction of month & year to populate dashboard dynamically
     function setDisplayMonth() {
         const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
         let targetDate = new Date();
-        
-        // Use date from latest transaction if entries exist to preserve context
         if (transactions.length > 0) {
-            // Sort to look at the most recent entry date
             const sortedTx = [...transactions].sort((a,b) => new Date(b.rawDate) - new Date(a.rawDate));
             targetDate = new Date(sortedTx[0].rawDate);
         }
-        
         const textString = `${months[targetDate.getMonth()]} ${targetDate.getFullYear()}`;
-        
-        // Display on web layout and printable target zones
         const elements = document.getElementsByClassName('current-month-txt');
-        for(let el of elements) {
-            el.innerText = textString;
-        }
+        for(let el of elements) el.innerText = textString;
     }
 
     function saveBfData() {
         balanceBroughtForward = parseFloat(document.getElementById('input-bf').value) || 0;
         localStorage.setItem('studio_bf_data', balanceBroughtForward);
-        updateDashboard();
+        calculateDashboard();
     }
 
-    function updateDashboard() {
+    // Pull database rows directly from Google Sheets
+    async function loadCloudData() {
+        if(CLOUD_URL === "YOUR_DEPLOYED_WEB_APP_URL_HERE") return;
+        try {
+            const response = await fetch(CLOUD_URL);
+            const data = await response.json();
+            
+            transactions = [];
+            data.sales.forEach(s => transactions.push({ rawDate: s.rawDate, type: 'credit', desc: 'Daily Revenue', amount: parseFloat(s.amount) }));
+            data.expenses.forEach(e => transactions.push({ rawDate: e.rawDate, type: 'debit', desc: e.desc, amount: parseFloat(e.amount) }));
+            
+            calculateDashboard();
+        } catch (err) {
+            console.error("Cloud fetch failed, using offline fallback.", err);
+        }
+    }
+
+    function calculateDashboard() {
         document.getElementById('input-bf').value = balanceBroughtForward;
         let totalSales = 0;
         let totalExpenses = 0;
@@ -408,65 +399,63 @@
         return currentRunningBalance; 
     }
 
-    function addSale(e) {
+    async function addSale(e) {
         e.preventDefault();
-        const rawDate = document.getElementById('sale-date').value;
+        const date = document.getElementById('sale-date').value;
         const amount = parseFloat(document.getElementById('sale-amount').value);
 
-        transactions.push({
-            rawDate,
-            type: 'credit',
-            desc: 'Daily Revenue',
-            amount
-        });
-
-        localStorage.setItem('studio_tx_data', JSON.stringify(transactions));
+        const payload = { type: 'credit', date, amount };
+        
+        // Optimistic UI updates, then sync to background spreadsheet 
+        transactions.push({ rawDate: date, type: 'credit', desc: 'Daily Revenue', amount });
+        calculateDashboard();
         document.getElementById('sales-form').reset();
-        document.getElementById('sale-date').value = rawDate;
-        updateDashboard();
+        document.getElementById('sale-date').value = date;
+
+        await fetch(CLOUD_URL, { method: "POST", body: JSON.stringify(payload) });
+        loadCloudData(); // Re-sync
     }
 
-    function addExpense(e) {
+    async function addExpense(e) {
         e.preventDefault();
-        const rawDate = document.getElementById('expense-date').value;
+        const date = document.getElementById('expense-date').value;
         const amount = parseFloat(document.getElementById('expense-amount').value);
         const desc = document.getElementById('expense-desc').value;
 
-        transactions.push({
-            rawDate,
-            type: 'debit',
-            desc,
-            amount
-        });
+        const payload = { type: 'debit', date, amount, desc };
 
-        localStorage.setItem('studio_tx_data', JSON.stringify(transactions));
+        transactions.push({ rawDate: date, type: 'debit', desc, amount });
+        calculateDashboard();
         document.getElementById('expense-form').reset();
-        document.getElementById('expense-date').value = rawDate;
-        updateDashboard();
+        document.getElementById('expense-date').value = date;
+
+        await fetch(CLOUD_URL, { method: "POST", body: JSON.stringify(payload) });
+        loadCloudData(); // Re-sync
     }
 
-    function closeMonth() {
-        const finalBalance = updateDashboard();
-        const confirmClose = confirm(`Are you sure you want to close out this month?\n\nThe remaining balance of ${formatCurrency(finalBalance)} will be carried forward as the opening balance for next month.`);
+    async function closeMonth() {
+        const finalBalance = calculateDashboard();
+        const confirmClose = confirm(`Close month? Remaining balance of ${formatCurrency(finalBalance)} will be carried forward.`);
         
         if (confirmClose) {
             balanceBroughtForward = finalBalance;
             localStorage.setItem('studio_bf_data', balanceBroughtForward);
             
-            transactions = [];
-            localStorage.removeItem('studio_tx_data');
+            // Clean up rows on the Google Sheet database side
+            await fetch(CLOUD_URL, { method: "POST", body: JSON.stringify({ type: 'clear' }) });
             
-            updateDashboard();
-            alert("Month closed successfully! Opening Balance updated.");
+            transactions = [];
+            calculateDashboard();
+            alert("Month rolled over! Cloud database cleared for next month.");
         }
     }
 
-    // Initialize inputs with current day
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('sale-date').value = today;
     document.getElementById('expense-date').value = today;
     
-    updateDashboard();
+    // Initial data load on startup
+    loadCloudData();
 </script>
 
 </body>
