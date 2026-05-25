@@ -184,13 +184,29 @@
             z-index: 5;
         }
 
+        /* Accounting Column Alignment Classes */
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        
         .text-green { color: var(--success); font-weight: bold; }
         .text-red { color: var(--danger); font-weight: bold; }
         .font-bold { font-weight: bold; }
 
+        .btn-edit {
+            background-color: #f39c12;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .btn-edit:hover { background-color: #d35400; }
+
         @media print {
             body { background: white; padding: 0; color: #000; }
-            header, form, .action-buttons, .input-bf-container { display: none !important; }
+            header, form, .action-buttons, .input-bf-container, .col-actions { display: none !important; }
             .print-only-header { 
                 display: block !important; 
                 text-align: center; margin-bottom: 30px; border-bottom: 3px double #2c3e50; padding-bottom: 10px;
@@ -225,27 +241,27 @@
 
     <div class="grid-cards">
         <div class="card">
-            <h3>Brought Forward</h3>
-            <div class="value" id="dash-bf">KES 0.00</div>
+            <h3>Brought Forward (KES)</h3>
+            <div class="value" id="dash-bf">0.00</div>
             <div class="input-bf-container" style="margin-top: 5px;">
                 <input type="number" id="input-bf" value="0" style="width: 90px; padding: 3px;" onchange="saveBfData()">
             </div>
         </div>
         <div class="card sales">
-            <h3>Monthly Sales</h3>
-            <div class="value text-green" id="dash-sales">KES 0.00</div>
+            <h3>Monthly Sales (KES)</h3>
+            <div class="value text-green" id="dash-sales">0.00</div>
         </div>
         <div class="card expenses">
-            <h3>Total Expenses</h3>
-            <div class="value text-red" id="dash-expenses">KES 0.00</div>
+            <h3>Total Expenses (KES)</h3>
+            <div class="value text-red" id="dash-expenses">0.00</div>
         </div>
         <div class="card profit">
-            <h3>Net Profit / Loss</h3>
-            <div class="value" id="dash-profit">KES 0.00</div>
+            <h3>Net Profit / Loss (KES)</h3>
+            <div class="value" id="dash-profit">0.00</div>
         </div>
         <div class="card">
-            <h3>Ending Balance</h3>
-            <div class="value font-bold" id="dash-bank">KES 0.00</div>
+            <h3>Ending Balance (KES)</h3>
+            <div class="value font-bold" id="dash-bank">0.00</div>
         </div>
     </div>
 
@@ -254,23 +270,25 @@
             <div class="section" style="margin-bottom: 20px;">
                 <h2>💰 Log Total Daily Sales</h2>
                 <form id="sales-form" onsubmit="addSale(event)">
+                    <input type="hidden" id="sale-edit-index" value="">
                     <div class="form-group-row">
                         <input type="date" id="sale-date" required>
                         <input type="number" id="sale-amount" placeholder="Sales Total (KES)" step="0.01" required>
                     </div>
-                    <button type="submit">Add Daily Credit</button>
+                    <button type="submit" id="sales-submit-btn">Add Daily Credit</button>
                 </form>
             </div>
 
             <div class="section">
                 <h2>💸 Log Monthly Expenses</h2>
                 <form id="expense-form" onsubmit="addExpense(event)">
+                    <input type="hidden" id="expense-edit-index" value="">
                     <div class="form-group-row">
                         <input type="date" id="expense-date" required>
                         <input type="number" id="expense-amount" placeholder="Expense (KES)" step="0.01" required>
                     </div>
                     <input type="text" id="expense-desc" placeholder="Description (e.g. Printer Repair, Rent)" required>
-                    <button type="submit">Add Expense Debit</button>
+                    <button type="submit" id="expenses-submit-btn">Add Expense Debit</button>
                 </form>
             </div>
         </div>
@@ -283,13 +301,14 @@
                         <tr>
                             <th>Date</th>
                             <th>Description</th>
-                            <th>Debit (Expenses)</th>
-                            <th>Credit (Sales)</th>
-                            <th>Running Balance</th>
+                            <th class="text-right">Debit (KES)</th>
+                            <th class="text-right">Credit (KES)</th>
+                            <th class="text-right">Balance (KES)</th>
+                            <th class="text-center col-actions">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="ledger-body">
-                        <tr><td colspan="5" style="text-align:center;">Loading ledger data from cloud...</td></tr>
+                        <tr><td colspan="6" style="text-align:center;">Loading ledger data from cloud...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -298,14 +317,14 @@
 </div>
 
 <script>
-    // ⚠️ PASTE YOUR GOOGLE WEB APP DEPLOYMENT URL HERE:
+    // Live Cloud Endpoint Configured
     const CLOUD_URL = "https://script.google.com/macros/s/AKfycbxvut7nwhpeXdOivNUGc1gfGE3T5l8qLxgLp-SsZXvG1xqa6oPmxKmosG3OX6Mp_JQG/exec";
 
     let transactions = [];
     let balanceBroughtForward = parseFloat(localStorage.getItem('studio_bf_data')) || 0;
 
-    function formatCurrency(amount) {
-        return "KES " + amount.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    function formatNumber(amount) {
+        return amount.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     }
 
     function formatDate(dateString) {
@@ -333,20 +352,18 @@
         calculateDashboard();
     }
 
-    // Pull database rows directly from Google Sheets
     async function loadCloudData() {
-        if(CLOUD_URL === "YOUR_DEPLOYED_WEB_APP_URL_HERE") return;
         try {
             const response = await fetch(CLOUD_URL);
             const data = await response.json();
             
             transactions = [];
-            data.sales.forEach(s => transactions.push({ rawDate: s.rawDate, type: 'credit', desc: 'Daily Revenue', amount: parseFloat(s.amount) }));
-            data.expenses.forEach(e => transactions.push({ rawDate: e.rawDate, type: 'debit', desc: e.desc, amount: parseFloat(e.amount) }));
+            data.sales.forEach((s, index) => transactions.push({ id: `sale-${index}`, rawDate: s.rawDate, type: 'credit', desc: 'Daily Revenue', amount: parseFloat(s.amount) }));
+            data.expenses.forEach((e, index) => transactions.push({ id: `expense-${index}`, rawDate: e.rawDate, type: 'debit', desc: e.desc, amount: parseFloat(e.amount) }));
             
             calculateDashboard();
         } catch (err) {
-            console.error("Cloud fetch failed, using offline fallback.", err);
+            console.error("Cloud fetch failed.", err);
         }
     }
 
@@ -362,7 +379,7 @@
 
         let currentRunningBalance = balanceBroughtForward;
         let bfRow = tbody.insertRow();
-        bfRow.innerHTML = `<td class="font-bold">-</td><td class="font-bold">BALANCE BROUGHT FORWARD</td><td>-</td><td>-</td><td class="font-bold">${formatCurrency(currentRunningBalance)}</td>`;
+        bfRow.innerHTML = `<td class="font-bold">-</td><td class="font-bold">BALANCE BROUGHT FORWARD</td><td>-</td><td>-</td><td class="font-bold text-right">${formatNumber(currentRunningBalance)}</td><td class="col-actions"></td>`;
 
         transactions.forEach(tx => {
             if (tx.type === 'credit') {
@@ -377,43 +394,74 @@
             row.innerHTML = `
                 <td>${formatDate(tx.rawDate)}</td>
                 <td>${tx.desc}</td>
-                <td class="${tx.type === 'debit' ? 'text-red' : ''}">${tx.type === 'debit' ? formatCurrency(tx.amount) : '-'}</td>
-                <td class="${tx.type === 'credit' ? 'text-green' : ''}">${tx.type === 'credit' ? formatCurrency(tx.amount) : '-'}</td>
-                <td class="font-bold">${formatCurrency(currentRunningBalance)}</td>
+                <td class="text-right ${tx.type === 'debit' ? 'text-red' : ''}">${tx.type === 'debit' ? formatNumber(tx.amount) : '-'}</td>
+                <td class="text-right ${tx.type === 'credit' ? 'text-green' : ''}">${tx.type === 'credit' ? formatNumber(tx.amount) : '-'}</td>
+                <td class="font-bold text-right">${formatNumber(currentRunningBalance)}</td>
+                <td class="text-center col-actions"><button class="btn-edit" onclick="initiateEdit('${tx.id}')">✏️ Edit</button></td>
             `;
         });
 
         const netProfit = totalSales - totalExpenses;
 
-        document.getElementById('dash-bf').innerText = formatCurrency(balanceBroughtForward);
-        document.getElementById('dash-sales').innerText = formatCurrency(totalSales);
-        document.getElementById('dash-expenses').innerText = formatCurrency(totalExpenses);
+        document.getElementById('dash-bf').innerText = formatNumber(balanceBroughtForward);
+        document.getElementById('dash-sales').innerText = formatNumber(totalSales);
+        document.getElementById('dash-expenses').innerText = formatNumber(totalExpenses);
         
         const profitCell = document.getElementById('dash-profit');
-        profitCell.innerText = formatCurrency(netProfit);
+        profitCell.innerText = formatNumber(netProfit);
         profitCell.className = netProfit >= 0 ? "value text-green" : "value text-red";
 
-        document.getElementById('dash-bank').innerText = formatCurrency(currentRunningBalance);
+        document.getElementById('dash-bank').innerText = formatNumber(currentRunningBalance);
         
         setDisplayMonth();
         return currentRunningBalance; 
+    }
+
+    function initiateEdit(id) {
+        const item = transactions.find(tx => tx.id === id);
+        if(!item) return;
+
+        // Clean native ISO date mapping format (YYYY-MM-DD)
+        const formatISODate = new Date(item.rawDate).toISOString().split('T')[0];
+
+        if(item.type === 'credit') {
+            document.getElementById('sale-edit-index').value = id;
+            document.getElementById('sale-date').value = formatISODate;
+            document.getElementById('sale-amount').value = item.amount;
+            document.getElementById('sales-submit-btn').innerText = "Update Credit Entry";
+            document.getElementById('sale-amount').focus();
+        } else {
+            document.getElementById('expense-edit-index').value = id;
+            document.getElementById('expense-date').value = formatISODate;
+            document.getElementById('expense-amount').value = item.amount;
+            document.getElementById('expense-desc').value = item.desc;
+            document.getElementById('expenses-submit-btn').innerText = "Update Debit Entry";
+            document.getElementById('expense-amount').focus();
+        }
     }
 
     async function addSale(e) {
         e.preventDefault();
         const date = document.getElementById('sale-date').value;
         const amount = parseFloat(document.getElementById('sale-amount').value);
+        const editId = document.getElementById('sale-edit-index').value;
+
+        // If editing an existing entry, delete old instance first to ensure correction consistency
+        if(editId) {
+            transactions = transactions.filter(tx => tx.id !== editId);
+            document.getElementById('sale-edit-index').value = "";
+            document.getElementById('sales-submit-btn').innerText = "Add Daily Credit";
+        }
 
         const payload = { type: 'credit', date, amount };
-        
-        // Optimistic UI updates, then sync to background spreadsheet 
-        transactions.push({ rawDate: date, type: 'credit', desc: 'Daily Revenue', amount });
+        transactions.push({ id: editId || `sale-${Date.now()}`, rawDate: date, type: 'credit', desc: 'Daily Revenue', amount });
         calculateDashboard();
+        
         document.getElementById('sales-form').reset();
         document.getElementById('sale-date').value = date;
 
         await fetch(CLOUD_URL, { method: "POST", body: JSON.stringify(payload) });
-        loadCloudData(); // Re-sync
+        loadCloudData();
     }
 
     async function addExpense(e) {
@@ -421,27 +469,33 @@
         const date = document.getElementById('expense-date').value;
         const amount = parseFloat(document.getElementById('expense-amount').value);
         const desc = document.getElementById('expense-desc').value;
+        const editId = document.getElementById('expense-edit-index').value;
+
+        if(editId) {
+            transactions = transactions.filter(tx => tx.id !== editId);
+            document.getElementById('expense-edit-index').value = "";
+            document.getElementById('expenses-submit-btn').innerText = "Add Expense Debit";
+        }
 
         const payload = { type: 'debit', date, amount, desc };
-
-        transactions.push({ rawDate: date, type: 'debit', desc, amount });
+        transactions.push({ id: editId || `expense-${Date.now()}`, rawDate: date, type: 'debit', desc, amount });
         calculateDashboard();
+        
         document.getElementById('expense-form').reset();
         document.getElementById('expense-date').value = date;
 
         await fetch(CLOUD_URL, { method: "POST", body: JSON.stringify(payload) });
-        loadCloudData(); // Re-sync
+        loadCloudData();
     }
 
     async function closeMonth() {
         const finalBalance = calculateDashboard();
-        const confirmClose = confirm(`Close month? Remaining balance of ${formatCurrency(finalBalance)} will be carried forward.`);
+        const confirmClose = confirm(`Close month? Remaining balance of ${formatNumber(finalBalance)} will be carried forward.`);
         
         if (confirmClose) {
             balanceBroughtForward = finalBalance;
             localStorage.setItem('studio_bf_data', balanceBroughtForward);
             
-            // Clean up rows on the Google Sheet database side
             await fetch(CLOUD_URL, { method: "POST", body: JSON.stringify({ type: 'clear' }) });
             
             transactions = [];
@@ -454,7 +508,6 @@
     document.getElementById('sale-date').value = today;
     document.getElementById('expense-date').value = today;
     
-    // Initial data load on startup
     loadCloudData();
 </script>
 
