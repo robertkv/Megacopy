@@ -192,17 +192,26 @@
         .text-red { color: var(--danger); font-weight: bold; }
         .font-bold { font-weight: bold; }
 
-        .btn-edit {
-            background-color: #f39c12;
-            color: white;
+        /* Smaller Action Buttons styling */
+        .action-cell {
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+        }
+
+        .btn-row-action {
             border: none;
-            padding: 4px 8px;
+            padding: 4px 6px;
             border-radius: 3px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
+            color: white;
+            transition: opacity 0.2s;
         }
-        .btn-edit:hover { background-color: #d35400; }
+        .btn-row-action:hover { opacity: 0.85; }
+        .btn-edit { background-color: #f39c12; }
+        .btn-delete { background-color: #e74c3c; }
 
         @media print {
             body { background: white; padding: 0; color: #000; }
@@ -304,7 +313,7 @@
                             <th class="text-right">Debit (KES)</th>
                             <th class="text-right">Credit (KES)</th>
                             <th class="text-right">Balance (KES)</th>
-                            <th class="text-center col-actions">Actions</th>
+                            <th class="text-center col-actions" style="width: 110px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="ledger-body">
@@ -317,7 +326,6 @@
 </div>
 
 <script>
-    // Live Cloud Endpoint Configured
     const CLOUD_URL = "https://script.google.com/macros/s/AKfycbxvut7nwhpeXdOivNUGc1gfGE3T5l8qLxgLp-SsZXvG1xqa6oPmxKmosG3OX6Mp_JQG/exec";
 
     let transactions = [];
@@ -397,7 +405,12 @@
                 <td class="text-right ${tx.type === 'debit' ? 'text-red' : ''}">${tx.type === 'debit' ? formatNumber(tx.amount) : '-'}</td>
                 <td class="text-right ${tx.type === 'credit' ? 'text-green' : ''}">${tx.type === 'credit' ? formatNumber(tx.amount) : '-'}</td>
                 <td class="font-bold text-right">${formatNumber(currentRunningBalance)}</td>
-                <td class="text-center col-actions"><button class="btn-edit" onclick="initiateEdit('${tx.id}')">✏️ Edit</button></td>
+                <td class="text-center col-actions">
+                    <div class="action-cell">
+                        <button class="btn-row-action btn-edit" onclick="initiateEdit('${tx.id}')">Edit</button>
+                        <button class="btn-row-action btn-delete" onclick="deleteEntry('${tx.id}')">Del</button>
+                    </div>
+                </td>
             `;
         });
 
@@ -421,7 +434,6 @@
         const item = transactions.find(tx => tx.id === id);
         if(!item) return;
 
-        // Clean native ISO date mapping format (YYYY-MM-DD)
         const formatISODate = new Date(item.rawDate).toISOString().split('T')[0];
 
         if(item.type === 'credit') {
@@ -440,28 +452,60 @@
         }
     }
 
+    async function deleteEntry(id) {
+        if (!confirm("Are you sure you want to delete this row record entry?")) return;
+        
+        // Remove from current layout array
+        transactions = transactions.filter(tx => tx.id !== id);
+        calculateDashboard();
+
+        // Sync fresh structural data state directly back up to Google cloud database
+        await syncWholeStateToCloud();
+    }
+
+    // Comprehensive synchronization engine utility
+    async function syncWholeStateToCloud() {
+        // Clear first
+        await fetch(CLOUD_URL, { method: "POST", body: JSON.stringify({ type: 'clear' }) });
+        
+        // Re-upload remaining rows sequentially
+        for(let tx of transactions) {
+            let payload = {
+                type: tx.type,
+                date: tx.rawDate,
+                amount: tx.amount,
+                desc: tx.desc || ''
+            };
+            await fetch(CLOUD_URL, { method: "POST", body: JSON.stringify(payload) });
+        }
+        loadCloudData();
+    }
+
     async function addSale(e) {
         e.preventDefault();
         const date = document.getElementById('sale-date').value;
         const amount = parseFloat(document.getElementById('sale-amount').value);
         const editId = document.getElementById('sale-edit-index').value;
 
-        // If editing an existing entry, delete old instance first to ensure correction consistency
         if(editId) {
             transactions = transactions.filter(tx => tx.id !== editId);
             document.getElementById('sale-edit-index').value = "";
             document.getElementById('sales-submit-btn').innerText = "Add Daily Credit";
+            
+            transactions.push({ id: editId, rawDate: date, type: 'credit', desc: 'Daily Revenue', amount });
+            calculateDashboard();
+            document.getElementById('sales-form').reset();
+            document.getElementById('sale-date').value = date;
+            await syncWholeStateToCloud();
+        } else {
+            const payload = { type: 'credit', date, amount };
+            transactions.push({ id: `sale-${Date.now()}`, rawDate: date, type: 'credit', desc: 'Daily Revenue', amount });
+            calculateDashboard();
+            document.getElementById('sales-form').reset();
+            document.getElementById('sale-date').value = date;
+            await fetch(CLOUD_URL, { method: "POST", body: JSON.stringify(payload) });
+            loadCloudData();
         }
-
-        const payload = { type: 'credit', date, amount };
-        transactions.push({ id: editId || `sale-${Date.now()}`, rawDate: date, type: 'credit', desc: 'Daily Revenue', amount });
-        calculateDashboard();
-        
-        document.getElementById('sales-form').reset();
-        document.getElementById('sale-date').value = date;
-
-        await fetch(CLOUD_URL, { method: "POST", body: JSON.stringify(payload) });
-        loadCloudData();
     }
 
     async function addExpense(e) {
@@ -475,17 +519,21 @@
             transactions = transactions.filter(tx => tx.id !== editId);
             document.getElementById('expense-edit-index').value = "";
             document.getElementById('expenses-submit-btn').innerText = "Add Expense Debit";
+            
+            transactions.push({ id: editId, rawDate: date, type: 'debit', desc, amount });
+            calculateDashboard();
+            document.getElementById('expense-form').reset();
+            document.getElementById('expense-date').value = date;
+            await syncWholeStateToCloud();
+        } else {
+            const payload = { type: 'debit', date, amount, desc };
+            transactions.push({ id: `expense-${Date.now()}`, rawDate: date, type: 'debit', desc, amount });
+            calculateDashboard();
+            document.getElementById('expense-form').reset();
+            document.getElementById('expense-date').value = date;
+            await fetch(CLOUD_URL, { method: "POST", body: JSON.stringify(payload) });
+            loadCloudData();
         }
-
-        const payload = { type: 'debit', date, amount, desc };
-        transactions.push({ id: editId || `expense-${Date.now()}`, rawDate: date, type: 'debit', desc, amount });
-        calculateDashboard();
-        
-        document.getElementById('expense-form').reset();
-        document.getElementById('expense-date').value = date;
-
-        await fetch(CLOUD_URL, { method: "POST", body: JSON.stringify(payload) });
-        loadCloudData();
     }
 
     async function closeMonth() {
