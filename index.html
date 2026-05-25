@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Print Shop Financial Summary Dashboard</title>
+    <title>Mega Copy Limited - Financial Summary Dashboard</title>
     <style>
         :root {
             --primary: #2c3e50;
@@ -40,7 +40,24 @@
 
         header h1 {
             margin: 0;
-            font-size: 24px;
+            font-size: 26px;
+            letter-spacing: 0.5px;
+        }
+
+        .month-indicator {
+            font-size: 18px;
+            font-weight: bold;
+            background-color: var(--secondary);
+            padding: 6px 14px;
+            border-radius: 20px;
+            margin-top: 5px;
+            display: inline-block;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        /* Printable Title hidden on standard view */
+        .print-only-header {
+            display: none;
         }
 
         .action-buttons {
@@ -181,24 +198,43 @@
         .text-red { color: var(--danger); font-weight: bold; }
         .font-bold { font-weight: bold; }
 
-        /* Printing Adjustments */
+        /* Printing Settings */
         @media print {
-            body { background: white; padding: 0; }
+            body { background: white; padding: 0; color: #000; }
             header, form, .action-buttons, .input-bf-container { display: none !important; }
+            
+            .print-only-header { 
+                display: block !important; 
+                text-align: center;
+                margin-bottom: 30px;
+                border-bottom: 3px double #2c3e50;
+                padding-bottom: 10px;
+            }
+            .print-only-header h1 { margin: 0 0 5px 0; font-size: 28px; color: #2c3e50; }
+            .print-only-header h2 { margin: 0; font-size: 20px; color: #555; text-transform: uppercase; }
+            
             .container { max-width: 100%; }
-            .card { box-shadow: none; border: 1px solid #ccc; }
+            .workspace { grid-template-columns: 1fr; }
+            .card { box-shadow: none; border: 1px solid #ccc; background: #fff !important; }
             .table-container { max-height: none; overflow: visible; }
-            th { background-color: #f2f2f2 !important; color: black; }
+            th { background-color: #f2f2f2 !important; color: black; border-bottom: 2px solid #000; }
+            td, th { padding: 8px 5px; }
         }
     </style>
 </head>
 <body>
 
 <div class="container">
+    
+    <div class="print-only-header">
+        <h1>MEGA COPY LIMITED</h1>
+        <h2>Financial Performance Report — <span class="current-month-txt"></span></h2>
+    </div>
+
     <header>
         <div>
-            <h1>Print & Photo Studio Dashboard</h1>
-            <small>Financial Ledger & Summary</small>
+            <h1>Mega Copy Limited</h1>
+            <div class="month-indicator">📅 Summary for: <span class="current-month-txt"></span></div>
         </div>
         <div class="action-buttons">
             <button class="btn-action btn-print" onclick="window.print()">🖨️ Print Report</button>
@@ -282,7 +318,6 @@
 </div>
 
 <script>
-    // Master transaction storage loaded from localStorage if it exists
     let transactions = JSON.parse(localStorage.getItem('studio_tx_data')) || [];
     let balanceBroughtForward = parseFloat(localStorage.getItem('studio_bf_data')) || 0;
 
@@ -297,7 +332,27 @@
         return `${day}/${months[date.getMonth()]}/${date.getFullYear()}`;
     }
 
-    // Explicitly triggers when manual input changes
+    // Dynamic extraction of month & year to populate dashboard dynamically
+    function setDisplayMonth() {
+        const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        let targetDate = new Date();
+        
+        // Use date from latest transaction if entries exist to preserve context
+        if (transactions.length > 0) {
+            // Sort to look at the most recent entry date
+            const sortedTx = [...transactions].sort((a,b) => new Date(b.rawDate) - new Date(a.rawDate));
+            targetDate = new Date(sortedTx[0].rawDate);
+        }
+        
+        const textString = `${months[targetDate.getMonth()]} ${targetDate.getFullYear()}`;
+        
+        // Display on web layout and printable target zones
+        const elements = document.getElementsByClassName('current-month-txt');
+        for(let el of elements) {
+            el.innerText = textString;
+        }
+    }
+
     function saveBfData() {
         balanceBroughtForward = parseFloat(document.getElementById('input-bf').value) || 0;
         localStorage.setItem('studio_bf_data', balanceBroughtForward);
@@ -305,24 +360,19 @@
     }
 
     function updateDashboard() {
-        // Set the input field display value from memory
         document.getElementById('input-bf').value = balanceBroughtForward;
-        
         let totalSales = 0;
         let totalExpenses = 0;
 
-        // Sort transactions chronologically to calculate accurate running balances
         transactions.sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
 
         const tbody = document.getElementById('ledger-body');
-        tbody.innerHTML = ""; // Reset table content
+        tbody.innerHTML = ""; 
 
-        // Add Balance Brought Forward Row directly into Ledger view
         let currentRunningBalance = balanceBroughtForward;
         let bfRow = tbody.insertRow();
         bfRow.innerHTML = `<td class="font-bold">-</td><td class="font-bold">BALANCE BROUGHT FORWARD</td><td>-</td><td>-</td><td class="font-bold">${formatCurrency(currentRunningBalance)}</td>`;
 
-        // Process loop and build ledger
         transactions.forEach(tx => {
             if (tx.type === 'credit') {
                 totalSales += tx.amount;
@@ -342,10 +392,8 @@
             `;
         });
 
-        // Compute metrics
         const netProfit = totalSales - totalExpenses;
 
-        // Update indicators
         document.getElementById('dash-bf').innerText = formatCurrency(balanceBroughtForward);
         document.getElementById('dash-sales').innerText = formatCurrency(totalSales);
         document.getElementById('dash-expenses').innerText = formatCurrency(totalExpenses);
@@ -356,7 +404,8 @@
 
         document.getElementById('dash-bank').innerText = formatCurrency(currentRunningBalance);
         
-        return currentRunningBalance; // Return for closing functionality
+        setDisplayMonth();
+        return currentRunningBalance; 
     }
 
     function addSale(e) {
@@ -371,9 +420,7 @@
             amount
         });
 
-        // Save data array to browser storage
         localStorage.setItem('studio_tx_data', JSON.stringify(transactions));
-
         document.getElementById('sales-form').reset();
         document.getElementById('sale-date').value = rawDate;
         updateDashboard();
@@ -392,9 +439,7 @@
             amount
         });
 
-        // Save data array to browser storage
         localStorage.setItem('studio_tx_data', JSON.stringify(transactions));
-
         document.getElementById('expense-form').reset();
         document.getElementById('expense-date').value = rawDate;
         updateDashboard();
@@ -405,26 +450,22 @@
         const confirmClose = confirm(`Are you sure you want to close out this month?\n\nThe remaining balance of ${formatCurrency(finalBalance)} will be carried forward as the opening balance for next month.`);
         
         if (confirmClose) {
-            // Update baseline values both in-memory and in localStorage
             balanceBroughtForward = finalBalance;
             localStorage.setItem('studio_bf_data', balanceBroughtForward);
             
-            // Clear ledger records in-memory and clear localStorage array
             transactions = [];
             localStorage.removeItem('studio_tx_data');
             
-            // Re-render empty ledger reflecting new starting baseline
             updateDashboard();
             alert("Month closed successfully! Opening Balance updated.");
         }
     }
 
-    // Initialize defaults on startup
+    // Initialize inputs with current day
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('sale-date').value = today;
     document.getElementById('expense-date').value = today;
     
-    // Automatically load any saved data on refresh
     updateDashboard();
 </script>
 
