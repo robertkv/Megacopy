@@ -211,7 +211,7 @@
             <h3>Brought Forward</h3>
             <div class="value" id="dash-bf">KES 0.00</div>
             <div class="input-bf-container" style="margin-top: 5px;">
-                <input type="number" id="input-bf" value="0" style="width: 90px; padding: 3px;" onchange="updateDashboard()">
+                <input type="number" id="input-bf" value="0" style="width: 90px; padding: 3px;" onchange="saveBfData()">
             </div>
         </div>
         <div class="card sales">
@@ -282,9 +282,9 @@
 </div>
 
 <script>
-    // Master transaction storage
-    let transactions = [];
-    let balanceBroughtForward = 0;
+    // Master transaction storage loaded from localStorage if it exists
+    let transactions = JSON.parse(localStorage.getItem('studio_tx_data')) || [];
+    let balanceBroughtForward = parseFloat(localStorage.getItem('studio_bf_data')) || 0;
 
     function formatCurrency(amount) {
         return "KES " + amount.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -297,8 +297,16 @@
         return `${day}/${months[date.getMonth()]}/${date.getFullYear()}`;
     }
 
-    function updateDashboard() {
+    // Explicitly triggers when manual input changes
+    function saveBfData() {
         balanceBroughtForward = parseFloat(document.getElementById('input-bf').value) || 0;
+        localStorage.setItem('studio_bf_data', balanceBroughtForward);
+        updateDashboard();
+    }
+
+    function updateDashboard() {
+        // Set the input field display value from memory
+        document.getElementById('input-bf').value = balanceBroughtForward;
         
         let totalSales = 0;
         let totalExpenses = 0;
@@ -363,6 +371,9 @@
             amount
         });
 
+        // Save data array to browser storage
+        localStorage.setItem('studio_tx_data', JSON.stringify(transactions));
+
         document.getElementById('sales-form').reset();
         document.getElementById('sale-date').value = rawDate;
         updateDashboard();
@@ -381,6 +392,9 @@
             amount
         });
 
+        // Save data array to browser storage
+        localStorage.setItem('studio_tx_data', JSON.stringify(transactions));
+
         document.getElementById('expense-form').reset();
         document.getElementById('expense-date').value = rawDate;
         updateDashboard();
@@ -391,20 +405,26 @@
         const confirmClose = confirm(`Are you sure you want to close out this month?\n\nThe remaining balance of ${formatCurrency(finalBalance)} will be carried forward as the opening balance for next month.`);
         
         if (confirmClose) {
-            // Set input field value to current ending balance
-            document.getElementById('input-bf').value = finalBalance.toFixed(2);
-            // Wipe active ledger data rows
+            // Update baseline values both in-memory and in localStorage
+            balanceBroughtForward = finalBalance;
+            localStorage.setItem('studio_bf_data', balanceBroughtForward);
+            
+            // Clear ledger records in-memory and clear localStorage array
             transactions = [];
+            localStorage.removeItem('studio_tx_data');
+            
             // Re-render empty ledger reflecting new starting baseline
             updateDashboard();
             alert("Month closed successfully! Opening Balance updated.");
         }
     }
 
-    // Initialize defaults
+    // Initialize defaults on startup
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('sale-date').value = today;
     document.getElementById('expense-date').value = today;
+    
+    // Automatically load any saved data on refresh
     updateDashboard();
 </script>
 
