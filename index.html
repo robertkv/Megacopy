@@ -12,6 +12,7 @@
             --danger: #c0392b;
             --light: #ecf0f1;
             --dark: #2c3e50;
+            --warning: #f39c12;
         }
 
         body {
@@ -27,7 +28,6 @@
             margin: 0 auto;
         }
 
-        /* Top Live Timestamp Styling */
         .live-timestamp {
             font-size: 14px;
             font-weight: 600;
@@ -83,11 +83,12 @@
         .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-print { background-color: #3498db; color: white; }
         .btn-close { background-color: #e67e22; color: white; }
+        .btn-refresh { background-color: #2cc36b; color: white; }
 
         /* Dashboard Cards */
         .grid-cards {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -102,7 +103,7 @@
 
         .card.sales { border-left-color: var(--success); }
         .card.expenses { border-left-color: var(--danger); }
-        .card.profit { border-left-color: #f39c12; }
+        .card.profit { border-left-color: var(--warning); }
 
         .card h3 {
             margin: 0 0 10px 0;
@@ -113,6 +114,15 @@
 
         .card .value {
             font-size: 22px;
+            font-weight: bold;
+        }
+
+        .input-bf-container input {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            box-sizing: border-box;
             font-weight: bold;
         }
 
@@ -268,7 +278,6 @@
 <body>
 
 <div class="container">
-    <!-- Top Report Generation Meta Meta -->
     <div class="live-timestamp">
         <span>🕒 Report Generated:</span> <span class="current-full-date-txt"></span>
     </div>
@@ -284,6 +293,7 @@
             <div class="month-indicator">📅 Summary for: <span class="current-month-txt"></span></div>
         </div>
         <div class="action-buttons">
+            <button class="btn-action btn-refresh" onclick="loadCloudData()">🔄 Sync Data</button>
             <button class="btn-action btn-print" onclick="window.print()">🖨️ Print Report</button>
             <button class="btn-action btn-close" id="close-month-btn" onclick="closeMonth()">🔒 Close Month</button>
         </div>
@@ -292,9 +302,9 @@
     <div class="grid-cards">
         <div class="card">
             <h3>Brought Forward (KES)</h3>
-            <div class="value" id="dash-bf">0.00</div>
-            <div class="input-bf-container" style="margin-top: 5px;">
-                <input type="number" id="input-bf" value="0" style="width: 90px; padding: 3px;" onchange="saveBfData()">
+            <div class="value" id="dash-bf" style="margin-bottom: 5px;">0.00</div>
+            <div class="input-bf-container">
+                <input type="number" id="input-bf" value="0" step="0.01" onchange="updateCloudBf(this.value)">
             </div>
         </div>
         <div class="card sales">
@@ -370,9 +380,8 @@
     const CLOUD_URL = "https://script.google.com/macros/s/AKfycbxvut7nwhpeXdOivNUGc1gfGE3T5l8qLxgLp-SsZXvG1xqa6oPmxKmosG3OX6Mp_JQG/exec";
 
     let transactions = [];
-    let balanceBroughtForward = parseFloat(localStorage.getItem('studio_bf_data')) || 0;
+    let balanceBroughtForward = 0; // Completely unlinked from client-side localstorage
 
-    // Helper Functions
     function formatNumber(amount) {
         return amount.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     }
@@ -384,7 +393,6 @@
         return `${day}/${months[date.getMonth()]}/${date.getFullYear()}`;
     }
 
-    // Set Live Timestamp String (Day of the Week, Date Month Year)
     function setLiveTimestamp() {
         const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
         const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -432,30 +440,49 @@
         for(let el of elements) el.innerText = textString;
     }
 
-    function saveBfData() {
-        balanceBroughtForward = parseFloat(document.getElementById('input-bf').value) || 0;
-        localStorage.setItem('studio_bf_data', balanceBroughtForward);
-        calculateDashboard();
+    // New API function to save BF straight to the cloud sheets database
+    async function updateCloudBf(val) {
+        const parsedVal = parseFloat(val) || 0;
+        toggleLoadingState(true, "Updating Brought Forward Balance...");
+        try {
+            const response = await fetch(CLOUD_URL, {
+                method: "POST",
+                body: JSON.stringify({ type: 'update_bf', amount: parsedVal })
+            });
+            if(!response.ok) throw new Error();
+            balanceBroughtForward = parsedVal;
+            calculateDashboard();
+        } catch(e) {
+            alert("Could not update Brought Forward Amount on the Cloud.");
+        } finally {
+            toggleLoadingState(false);
+        }
     }
 
     async function loadCloudData() {
+        toggleLoadingState(true, "Fetching latest Cloud metrics...");
         try {
             const response = await fetch(CLOUD_URL);
             if (!response.ok) throw new Error("Network validation failed.");
             const data = await response.json();
             
+            // Assign dynamic BF values returned from the Google Sheet
+            balanceBroughtForward = parseFloat(data.bf) || 0;
+            
             transactions = [];
             if (data.sales) {
-                data.sales.forEach((s, index) => transactions.push({ id: `sale-${index}`, rawDate: s.rawDate, type: 'credit', desc: 'Daily Revenue', amount: parseFloat(s.amount) }));
+                data.sales.forEach((s, index) => transactions.push({ id: s.id || `sale-${index}`, rawDate: s.rawDate, type: 'credit', desc: 'Daily Revenue', amount: parseFloat(s.amount) }));
             }
             if (data.expenses) {
-                data.expenses.forEach((e, index) => transactions.push({ id: `expense-${index}`, rawDate: e.rawDate, type: 'debit', desc: e.desc, amount: parseFloat(e.amount) }));
+                data.expenses.forEach((e, index) => transactions.push({ id: e.id || `expense-${index}`, rawDate: e.rawDate, type: 'debit', desc: e.desc, amount: parseFloat(e.amount) }));
             }
             
             calculateDashboard();
         } catch (err) {
             console.error("Cloud fetch failed.", err);
             document.getElementById('ledger-body').innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--danger)">Failed to load data from Cloud Server. Check connection.</td></tr>`;
+        } finally {
+            toggleLoadingState(false);
         }
     }
 
@@ -555,6 +582,7 @@
     async function syncWholeStateToCloud() {
         try {
             const batchPayload = transactions.map(tx => ({
+                id: tx.id, // Pass ID back to your sheets database to aid auditing trail
                 type: tx.type,
                 date: tx.rawDate,
                 amount: tx.amount,
@@ -630,23 +658,25 @@
 
     async function closeMonth() {
         const finalBalance = calculateDashboard();
-        const confirmClose = confirm(`Close month? Remaining balance of ${formatNumber(finalBalance)} KES will be carried forward.`);
+        const confirmClose = confirm(`Close month? Remaining balance of ${formatNumber(finalBalance)} KES will be pushed forward.`);
         if (!confirmClose) return;
 
         toggleLoadingState(true, "Rolling over dashboard financial month...");
         
         try {
-            const response = await fetch(CLOUD_URL, { method: "POST", body: JSON.stringify({ type: 'clear' }) });
+            // Updated payload context to clear data but update the cloud's master BF balance field
+            const response = await fetch(CLOUD_URL, { 
+                method: "POST", 
+                body: JSON.stringify({ type: 'clear_and_rollover', nextBf: finalBalance }) 
+            });
             if(!response.ok) throw new Error("Server rejected request");
 
             balanceBroughtForward = finalBalance;
-            localStorage.setItem('studio_bf_data', balanceBroughtForward);
-            
             transactions = [];
             calculateDashboard();
-            alert("Month rolled over successfully! Database cleared for next phase.");
+            alert("Month rolled over successfully!");
         } catch(err) {
-            alert("Rollover process rejected by remote infrastructure. Data preserved locally.");
+            alert("Rollover process rejected by cloud infrastructure.");
         } finally {
             toggleLoadingState(false);
         }
