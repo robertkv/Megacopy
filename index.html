@@ -27,6 +27,17 @@
             margin: 0 auto;
         }
 
+        /* Top Live Timestamp Styling */
+        .live-timestamp {
+            font-size: 14px;
+            font-weight: 600;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
         header {
             background-color: var(--primary);
             color: white;
@@ -216,7 +227,6 @@
             transform: scale(1.15);
         }
 
-        /* Sync Visual Dimmer Indicator */
         .sync-loading {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -233,6 +243,15 @@
         @media print {
             body { background: white; padding: 0; color: #000; }
             header, form, .action-buttons, .input-bf-container, .col-actions, .sync-loading { display: none !important; }
+            
+            .live-timestamp { 
+                display: block !important; 
+                text-align: right; 
+                font-size: 12px; 
+                color: #000; 
+                margin-bottom: 5px;
+            }
+            
             .print-only-header { 
                 display: block !important; 
                 text-align: center; margin-bottom: 30px; border-bottom: 3px double #2c3e50; padding-bottom: 10px;
@@ -249,6 +268,11 @@
 <body>
 
 <div class="container">
+    <!-- Top Report Generation Meta Meta -->
+    <div class="live-timestamp">
+        <span>🕒 Report Generated:</span> <span class="current-full-date-txt"></span>
+    </div>
+
     <div class="print-only-header">
         <h1>MEGA COPY LIMITED</h1>
         <h2>Financial Performance Report — <span class="current-month-txt"></span></h2>
@@ -343,7 +367,6 @@
 </div>
 
 <script>
-    // Config
     const CLOUD_URL = "https://script.google.com/macros/s/AKfycbxvut7nwhpeXdOivNUGc1gfGE3T5l8qLxgLp-SsZXvG1xqa6oPmxKmosG3OX6Mp_JQG/exec";
 
     let transactions = [];
@@ -359,6 +382,22 @@
         const day = String(date.getDate()).padStart(2, '0');
         const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         return `${day}/${months[date.getMonth()]}/${date.getFullYear()}`;
+    }
+
+    // Set Live Timestamp String (Day of the Week, Date Month Year)
+    function setLiveTimestamp() {
+        const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        
+        const now = new Date();
+        const dayName = days[now.getDay()];
+        const dateNum = now.getDate();
+        const monthName = months[now.getMonth()];
+        const year = now.getFullYear();
+        
+        const fullString = `${dayName}, ${dateNum} ${monthName} ${year}`;
+        const elements = document.getElementsByClassName('current-full-date-txt');
+        for(let el of elements) el.innerText = fullString;
     }
 
     function toggleLoadingState(isLoading, message = "Syncing with Cloud...") {
@@ -399,7 +438,6 @@
         calculateDashboard();
     }
 
-    // Core Processing Engine
     async function loadCloudData() {
         try {
             const response = await fetch(CLOUD_URL);
@@ -508,13 +546,12 @@
         toggleLoadingState(true, "Deleting record...");
         const secureSync = await syncWholeStateToCloud();
         if(!secureSync) {
-            transactions = originalState; // rollback if sync failed
+            transactions = originalState;
             calculateDashboard();
         }
         toggleLoadingState(false);
     }
 
-    /* Batch Array payload fix targeting App Script implementation */
     async function syncWholeStateToCloud() {
         try {
             const batchPayload = transactions.map(tx => ({
@@ -524,7 +561,6 @@
                 desc: tx.desc || ''
             }));
 
-            // Single POST batch transaction array structure handling
             const response = await fetch(CLOUD_URL, { 
                 method: "POST", 
                 body: JSON.stringify({ type: 'batch_sync', data: batchPayload }) 
@@ -559,7 +595,7 @@
         calculateDashboard();
         
         document.getElementById('sales-form').reset();
-        document.getElementById('sale-date').value = date; // Kept date sticky for bulk input UX
+        document.getElementById('sale-date').value = date;
 
         await syncWholeStateToCloud();
         toggleLoadingState(false);
@@ -586,7 +622,7 @@
         calculateDashboard();
         
         document.getElementById('expense-form').reset();
-        document.getElementById('expense-date').value = date; // Kept date sticky
+        document.getElementById('expense-date').value = date;
 
         await syncWholeStateToCloud();
         toggleLoadingState(false);
@@ -600,7 +636,6 @@
         toggleLoadingState(true, "Rolling over dashboard financial month...");
         
         try {
-            // Confirm the cloud accepts deletion parameters first
             const response = await fetch(CLOUD_URL, { method: "POST", body: JSON.stringify({ type: 'clear' }) });
             if(!response.ok) throw new Error("Server rejected request");
 
@@ -622,6 +657,7 @@
     document.getElementById('sale-date').value = today;
     document.getElementById('expense-date').value = today;
     
+    setLiveTimestamp();
     loadCloudData();
 </script>
 
