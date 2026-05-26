@@ -675,20 +675,25 @@ function initiateEdit(id) {
         const finalBalance = calculateDashboard();
         const confirmClose = confirm(`Close month? Remaining balance of ${formatNumber(finalBalance)} KES will be pushed forward.`);
         if (!confirmClose) return;
-
+    
         toggleLoadingState(true, "Rolling over dashboard financial month...");
         
         try {
-            // Updated payload context to clear data but update the cloud's master BF balance field
             const response = await fetch(CLOUD_URL, { 
                 method: "POST", 
                 body: JSON.stringify({ type: 'clear_and_rollover', nextBf: finalBalance }) 
             });
             if(!response.ok) throw new Error("Server rejected request");
-
+    
             balanceBroughtForward = finalBalance;
             transactions = [];
             calculateDashboard();
+            
+            // FIX: Automatically reset date inputs to the current local date after a successful rollover
+            const todayStr = new Date().toISOString().split('T')[0];
+            document.getElementById('sale-date').value = todayStr;
+            document.getElementById('expense-date').value = todayStr;
+    
             alert("Month rolled over successfully!");
         } catch(err) {
             alert("Rollover process rejected by cloud infrastructure.");
