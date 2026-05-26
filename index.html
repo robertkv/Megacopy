@@ -286,7 +286,7 @@
                         <input type="date" id="sale-date" required>
                         <input type="number" id="sale-amount" placeholder="Sales Total (KES)" step="0.01" required>
                     </div>
-                    <button type="submit" id="sales-submit-btn">Add Daily Credit</button>
+                    <button type="submit" id="sales-submit-btn">Add Daily Sales</button>
                 </form>
             </div>
 
@@ -486,7 +486,7 @@
         if(editId) {
             transactions = transactions.filter(tx => tx.id !== editId);
             document.getElementById('sale-edit-index').value = "";
-            document.getElementById('sales-submit-btn').innerText = "Add Daily Credit";
+            document.getElementById('sales-submit-btn').innerText = "Add Daily Sales";
             
             transactions.push({ id: editId, rawDate: date, type: 'credit', desc: 'Daily Revenue', amount });
             calculateDashboard();
