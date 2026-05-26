@@ -269,9 +269,19 @@
             .print-only-header h1 { margin: 0; font-size: 28px; color: #2c3e50; }
             .container { max-width: 100%; }
             .workspace { grid-template-columns: 1fr; }
-            .card { box-shadow: none; border: 1px solid #ccc; }
+            .card { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; }
+            
+            /* FIX FOR MID-PAGE HEADER REPETITION ISSUES */
             .table-container { max-height: none; overflow: visible; }
-            th { background-color: #f2f2f2 !important; color: black; border-bottom: 2px solid #000; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            
+            th { 
+                background-color: #f2f2f2 !important; 
+                color: black; 
+                border-bottom: 2px solid #000;
+                position: static !important; /* Disables sticky layout logic strictly during printing clicks */
+            }
         }
     </style>
 </head>
